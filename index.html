@@ -1,4 +1,79 @@
-Step 1: Create a file named 'index.html' on your computer.
-Step 2: Copy the provided code (below) into it.
-Step 3: Upload 'index.html' to your GitHub repository 'meal-splitter'.
-Step 4: Click 'Commit changes
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meal Splitter - Mahboob Ali</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function MealSplitter() {
+            const [items, setItems] = useState([]);
+            const [name, setName] = useState('');
+            const [price, setPrice] = useState('');
+
+            const addItem = () => {
+                if (name && price) {
+                    setItems([...items, { id: Date.now(), name, price: parseFloat(price) }]);
+                    setName('');
+                    setPrice('');
+                }
+            };
+
+            const total = items.reduce((acc, item) => acc + item.price, 0);
+
+            return (
+                <div className="max-w-md mx-auto m-10 bg-white p-6 rounded-xl shadow-lg">
+                    <h1 className="text-2xl font-bold text-center text-blue-600 mb-6">Meal Splitter 🍽️</h1>
+                    
+                    <div className="flex gap-2 mb-6">
+                        <input 
+                            type="text" placeholder="Item Name" 
+                            className="border p-2 rounded w-full"
+                            value={name} onChange={(e) => setName(e.target.value)}
+                        />
+                        <input 
+                            type="number" placeholder="Price" 
+                            className="border p-2 rounded w-24"
+                            value={price} onChange={(e) => setPrice(e.target.value)}
+                        />
+                        <button onClick={addItem} className="bg-blue-500 text-white p-2 rounded">Add</button>
+                    </div>
+
+                    <ul className="divide-y">
+                        {items.map(item => (
+                            <li key={item.id} className="py-2 flex justify-between text-gray-700">
+                                <span>{item.name}</span>
+                                <span className="font-bold">RS {item.price}</span>
+                            </li>
+                        ))}
+                    </ul>
+
+                    <div className="mt-6 border-t pt-4">
+                        <div className="flex justify-between text-xl font-bold text-green-600">
+                            <span>Total Bill:</span>
+                            <span>RS {total}</span>
+                        </div>
+                    </div>
+                    
+                    <p className="text-center text-xs text-gray-400 mt-10">Developed by Mahboob Ali - AI Student</p>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MealSplitter />);
+    </script>
+</body>
+</html>
