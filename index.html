@@ -1,79 +1,183 @@
 <!DOCTYPE html>
-<html lang="ur">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meal Splitter - Mahboob Ali</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <title>MealSplitter Pro</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Firebase Libraries -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        function MealSplitter() {
+        // --- MAHBOOB: Replace this with your OWN config from Firebase Console ---
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('manager');
+            const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+            const [mealType, setMealType] = useState('Lunch');
+            const [customMealType, setCustomMealType] = useState('');
+            const [people, setPeople] = useState([]);
+            const [newPersonName, setNewPersonName] = useState('');
             const [items, setItems] = useState([]);
-            const [name, setName] = useState('');
-            const [price, setPrice] = useState('');
+            const [history, setHistory] = useState([]);
 
-            const addItem = () => {
-                if (name && price) {
-                    setItems([...items, { id: Date.now(), name, price: parseFloat(price) }]);
-                    setName('');
-                    setPrice('');
+            // Simple Auth
+            useEffect(() => {
+                auth.signInAnonymously().catch(err => console.error("Auth Error", err));
+                const unsubscribe = db.collection('meals').orderBy('timestamp', 'desc').onSnapshot(snap => {
+                    const docs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    setHistory(docs);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            const addPerson = () => {
+                if (newPersonName.trim() && !people.includes(newPersonName)) {
+                    setPeople([...people, newPersonName.trim()]);
+                    setNewPersonName('');
                 }
             };
 
-            const total = items.reduce((acc, item) => acc + item.price, 0);
+            const addItem = () => {
+                setItems([...items, { id: Date.now(), name: '', qty: 1, price: 0, sharers: [...people] }]);
+            };
+
+            const results = useMemo(() => {
+                const total = items.reduce((s, i) => s + (i.qty * i.price), 0);
+                const shares = people.reduce((acc, p) => {
+                    acc[p] = items.reduce((s, i) => i.sharers.includes(p) ? s + ((i.qty * i.price) / i.sharers.length) : s, 0);
+                    return acc;
+                }, {});
+                return { total, shares };
+            }, [items, people]);
+
+            const downloadPDF = () => {
+                const doc = new jspdf.jsPDF();
+                doc.text("MEAL RECEIPT", 105, 20, { align: "center" });
+                doc.text(`Date: ${date}`, 20, 30);
+                doc.text(`Total: $${results.total.toFixed(2)}`, 20, 40);
+                doc.save('receipt.pdf');
+            };
+
+            const saveMeal = () => {
+                db.collection('meals').add({
+                    date, mealType: mealType === 'Custom' ? customMealType : mealType,
+                    people, items, results, timestamp: Date.now()
+                });
+                setPeople([]); setItems([]);
+            };
 
             return (
-                <div className="max-w-md mx-auto m-10 bg-white p-6 rounded-xl shadow-lg">
-                    <h1 className="text-2xl font-bold text-center text-blue-600 mb-6">Meal Splitter 🍽️</h1>
-                    
-                    <div className="flex gap-2 mb-6">
-                        <input 
-                            type="text" placeholder="Item Name" 
-                            className="border p-2 rounded w-full"
-                            value={name} onChange={(e) => setName(e.target.value)}
-                        />
-                        <input 
-                            type="number" placeholder="Price" 
-                            className="border p-2 rounded w-24"
-                            value={price} onChange={(e) => setPrice(e.target.value)}
-                        />
-                        <button onClick={addItem} className="bg-blue-500 text-white p-2 rounded">Add</button>
-                    </div>
-
-                    <ul className="divide-y">
-                        {items.map(item => (
-                            <li key={item.id} className="py-2 flex justify-between text-gray-700">
-                                <span>{item.name}</span>
-                                <span className="font-bold">RS {item.price}</span>
-                            </li>
-                        ))}
-                    </ul>
-
-                    <div className="mt-6 border-t pt-4">
-                        <div className="flex justify-between text-xl font-bold text-green-600">
-                            <span>Total Bill:</span>
-                            <span>RS {total}</span>
+                <div className="max-w-md mx-auto bg-white min-h-screen shadow-lg font-sans">
+                    <header className="bg-indigo-600 text-white p-6 rounded-b-3xl shadow-lg">
+                        <h1 className="text-2xl font-black italic">MealSplitter</h1>
+                        <div className="flex gap-2 mt-4">
+                            <button onClick={() => setActiveTab('manager')} className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase ${activeTab === 'manager' ? 'bg-white text-indigo-600' : 'bg-indigo-500'}`}>Manager</button>
+                            <button onClick={() => setActiveTab('history')} className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase ${activeTab === 'history' ? 'bg-white text-indigo-600' : 'bg-indigo-500'}`}>History</button>
                         </div>
-                    </div>
-                    
-                    <p className="text-center text-xs text-gray-400 mt-10">Developed by Mahboob Ali - AI Student</p>
+                    </header>
+
+                    {activeTab === 'manager' ? (
+                        <div className="p-6 space-y-6">
+                            <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border">
+                                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-2 rounded-lg border" />
+                                <select value={mealType} onChange={e => setMealType(e.target.value)} className="w-full p-2 rounded-lg border">
+                                    <option>Breakfast</option><option>Lunch</option><option>Dinner</option><option value="Custom">Custom</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <h2 className="font-bold text-sm uppercase text-slate-400">Add Friends</h2>
+                                <div className="flex gap-2">
+                                    <input value={newPersonName} onChange={e => setNewPersonName(e.target.value)} placeholder="Name" className="flex-1 p-2 border rounded-lg" />
+                                    <button onClick={addPerson} className="bg-indigo-600 text-white px-4 rounded-lg">+</button>
+                                </div>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                    {people.map(p => <span key={p} className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">{p}</span>)}
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex justify-between">
+                                    <h2 className="font-bold text-sm uppercase text-slate-400">Items</h2>
+                                    <button onClick={addItem} className="text-xs font-bold text-indigo-600">+ Add Item</button>
+                                </div>
+                                {items.map(item => (
+                                    <div key={item.id} className="p-3 border rounded-xl space-y-2">
+                                        <input placeholder="Item name" className="w-full font-bold border-b" value={item.name} onChange={e => {
+                                            const newItems = items.map(i => i.id === item.id ? {...i, name: e.target.value} : i);
+                                            setItems(newItems);
+                                        }} />
+                                        <div className="flex gap-2">
+                                            <input type="number" placeholder="Qty" className="w-1/2 p-1 border rounded" value={item.qty} onChange={e => {
+                                                const newItems = items.map(i => i.id === item.id ? {...i, qty: parseInt(e.target.value) || 0} : i);
+                                                setItems(newItems);
+                                            }} />
+                                            <input type="number" placeholder="Price" className="w-1/2 p-1 border rounded" value={item.price} onChange={e => {
+                                                const newItems = items.map(i => i.id === item.id ? {...i, price: parseFloat(e.target.value) || 0} : i);
+                                                setItems(newItems);
+                                            }} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="bg-slate-900 text-white p-6 rounded-3xl space-y-4">
+                                <div className="flex justify-between items-center border-b border-slate-700 pb-2">
+                                    <span className="text-xs uppercase font-bold text-slate-400">Total Bill</span>
+                                    <span className="text-2xl font-black">${results.total.toFixed(2)}</span>
+                                </div>
+                                {Object.entries(results.shares).map(([name, share]) => (
+                                    <div key={name} className="flex justify-between text-sm">
+                                        <span>{name}</span><span className="font-bold text-indigo-400">${share.toFixed(2)}</span>
+                                    </div>
+                                ))}
+                                <button onClick={saveMeal} className="w-full bg-indigo-600 py-3 rounded-xl font-bold uppercase text-xs tracking-widest mt-4">Save Session</button>
+                                <button onClick={downloadPDF} className="w-full bg-slate-800 py-2 rounded-xl text-[10px] font-bold uppercase border border-slate-700">Download PDF</button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-6 space-y-4">
+                            {history.map(m => (
+                                <div key={m.id} className="p-4 border rounded-2xl">
+                                    <div className="flex justify-between"><span className="text-xs font-bold text-indigo-600 uppercase">{m.mealType}</span><span className="font-black">${m.results.total.toFixed(2)}</span></div>
+                                    <p className="text-xs text-slate-400 font-bold">{m.date}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             );
-        }
+        };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<MealSplitter />);
+        root.render(<App />);
     </script>
 </body>
 </html>
