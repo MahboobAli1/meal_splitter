@@ -1,0 +1,6 @@
+{
+  "appId": "com.mealsplitter.pro",
+  "appName": "MealSplitter Pro",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
